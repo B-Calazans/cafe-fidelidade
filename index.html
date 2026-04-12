@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>São Domingos - Café Fidelidade</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header>
+  <svg class="brand-logo" viewBox="0 0 110 110" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="55" cy="55" r="52" fill="none" stroke="#2d6b30" stroke-width="2"/>
+    <ellipse cx="55" cy="8"  rx="4" ry="6.5" fill="none" stroke="#4a8c4e" stroke-width="1.5" transform="rotate(0,55,55)"/>
+    <ellipse cx="55" cy="8"  rx="4" ry="6.5" fill="none" stroke="#4a8c4e" stroke-width="1.5" transform="rotate(45,55,55)"/>
+    <ellipse cx="55" cy="8"  rx="4" ry="6.5" fill="none" stroke="#4a8c4e" stroke-width="1.5" transform="rotate(90,55,55)"/>
+    <ellipse cx="55" cy="8"  rx="4" ry="6.5" fill="none" stroke="#4a8c4e" stroke-width="1.5" transform="rotate(135,55,55)"/>
+    <ellipse cx="55" cy="8"  rx="4" ry="6.5" fill="none" stroke="#4a8c4e" stroke-width="1.5" transform="rotate(180,55,55)"/>
+    <ellipse cx="55" cy="8"  rx="4" ry="6.5" fill="none" stroke="#4a8c4e" stroke-width="1.5" transform="rotate(225,55,55)"/>
+    <ellipse cx="55" cy="8"  rx="4" ry="6.5" fill="none" stroke="#4a8c4e" stroke-width="1.5" transform="rotate(270,55,55)"/>
+    <ellipse cx="55" cy="8"  rx="4" ry="6.5" fill="none" stroke="#4a8c4e" stroke-width="1.5" transform="rotate(315,55,55)"/>
+    <circle cx="55" cy="55" r="36" fill="none" stroke="#2d6b30" stroke-width="1.2"/>
+    <text x="30" y="67" font-family="Georgia, serif" font-size="38" font-weight="700"
+          fill="none" stroke="#ffffff" stroke-width="1.5" letter-spacing="-2">S</text>
+    <text x="48" y="67" font-family="Georgia, serif" font-size="38" font-weight="700"
+          fill="none" stroke="#7ab87e" stroke-width="1.5" letter-spacing="-2">D</text>
+  </svg>
+
+  <h1>São Domingos</h1>
+  <div class="brand-sub">Café</div>
+  <div class="brand-divider"></div>
+  <div class="loyalty-tag">A cada 10 pacotes de café (500g), o próximo é por nossa conta!</div>
+  <div class="brand-social">Não deixe de nos seguir no Instagram: @fazenda.saodomingos</div>
+</header>
+
+<div class="stats-bar" id="stats-bar" role="region" aria-label="Estatísticas">
+  <div class="stat-box clickable" onclick="document.getElementById('client-list').scrollIntoView({behavior:'smooth'})" title="Ver clientes cadastrados" aria-label="Total de clientes cadastrados">
+    <div class="val" id="stat-clients">0</div>
+    <div class="lbl">Clientes</div>
+  </div>
+  <div class="stat-box" aria-label="Total de compras registradas">
+    <div class="val" id="stat-purchases">0</div>
+    <div class="lbl">Compras Totais</div>
+  </div>
+  <div class="stat-box" aria-label="Total de cafés resgatados gratuitamente">
+    <div class="val" id="stat-free">0</div>
+    <div class="lbl">Cafés Gratuitos</div>
+  </div>
+</div>
+
+<div class="add-form">
+  <div class="add-row">
+    <input 
+      type="text" 
+      id="client-input" 
+      placeholder="Nome do cliente..." 
+      maxlength="40"
+      aria-label="Nome do novo cliente"
+      required 
+    />
+    <button onclick="addClient()" aria-label="Adicionar novo cliente">+ Adicionar</button>
+  </div>
+  <div class="add-row">
+    <input 
+      type="tel" 
+      id="phone-input" 
+      placeholder="WhatsApp (ex: 11999998888)" 
+      maxlength="15"
+      pattern="[0-9\s\-\(\)]+"
+      inputmode="numeric"
+      aria-label="Número de WhatsApp (opcional)"
+    />
+  </div>
+</div>
+
+<div class="search-bar">
+  <span class="search-icon" aria-hidden="true">🔍</span>
+  <input 
+    type="text" 
+    id="search-input" 
+    placeholder="Pesquisar cliente cadastrado..." 
+    aria-label="Buscar cliente"
+  />
+  <span class="search-count" id="search-count" aria-live="polite"></span>
+</div>
+
+<div id="client-list" role="main" aria-label="Lista de clientes"></div>
+
+<div id="toast" role="status" aria-live="assertive" aria-atomic="true"></div>
+
+<script>
+  const STORAGE_KEY = 'cafe_fidelidade_v1';
+
+  function load() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      const parsed = data ? JSON.parse(data) : [];
+      // Validação: garantir que todos os clientes têm as propriedades obrigatórias
+      return parsed.map(c => ({
+        name: String(c.name || '').trim(),
+        phone: String(c.phone || ''),
+        count: Number(c.count) || 0,
+        total: Number(c.total) || 0,
+        freeCount: Number(c.freeCount) || 0,
+        freeReady: Boolean(c.freeReady) || false
+      }));
+    } catch (e) {
+      console.error('Erro ao carregar dados:', e);
+      return [];
+    }
+  }
+
+  function save(data) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error('Erro ao salvar dados:', e);
+      showToast('❌ Erro ao salvar! Tente novamente.');
+    }
+  }
+
+  let clients = load();
+
+  // ── VALIDACIÓN ─────────────────────────────────────────
+  function isValidPhone(phone) {
+    const clean = phone.replace(/\D/g, '');
+    return clean.length >= 10 && clean.length <= 15;
+  }
+
+  function isValidName(name) {
+    const clean = name.trim();
+    return clean.length > 0 && clean.length <= 40;
+  }
+
+  // ── TOAST ──────────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  // ── WHATSAPP ───────────────────────────────────────────
+  function formatPhone(raw) {
+    return raw.replace(/\D/g, '');
+  }
+
+  function openWhatsApp(phone, msg) {
+    const number = formatPhone(phone);
+    const full = number.startsWith('55') ? number : '55' + number;
+    const url = `https://wa.me/${full}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  }
+
+  function buildPurchaseMsg(c) {
+    if (c.freeReady) {
+      return `Olá, ${c.name}! 🎉\n\nVocê completou 10 cafés no *Café São Domingos* e ganhou um café *GRÁTIS*!\n\nVenha resgatar sua recompensa quando quiser. ☕`;
+    }
+    const progress = c.count % 10;
+    const left = 10 - progress;
+    return `Olá, ${c.name}! ☕\n\nSua compra foi registrada no *Café São Domingos*.\n\nVocê tem *${progress} de 10* selos. Faltam apenas *${left}* para ganhar um café grátis! 🎁`;
+  }
+
+  function buildRedeemMsg(c) {
+    return `Olá, ${c.name}! 🎁\n\nSeu café *GRÁTIS* foi resgatado no *Café São Domingos*. Bom proveito!\n\nContinue acumulando selos para ganhar o próximo. ☕`;
+  }
+
+  function sendWhatsApp(idx) {
+    if (typeof idx !== 'number' || idx < 0 || idx >= clients.length) return;
+    
+    const c = clients[idx];
+    if (!c.phone) {
+      showToast('❌ Número de WhatsApp não configurado!');
+      return;
+    }
+    openWhatsApp(c.phone, buildPurchaseMsg(c));
+  }
+
+  function editPhone(idx) {
+    const c = clients[idx];
+    if (typeof idx !== 'number' || idx < 0 || idx >= clients.length) return;
+    
+    const current = c.phone || '';
+    const val = prompt(`Número de WhatsApp de ${c.name}:\n(apenas números, ex: 11999998888)`, current);
+    if (val === null) return;
+    
+    const clean = val.replace(/\D/g, '');
+    if (clean.length === 0) {
+      c.phone = '';
+    } else if (!isValidPhone(clean)) {
+      showToast('❌ Telefone inválido! Use 10-15 dígitos.');
+      return;
+    } else {
+      c.phone = clean;
+    }
+    save(clients);
+    render();
+  }
+
+  // ── SEARCH ─────────────────────────────────────────────
+  function getQuery() {
+    return document.getElementById('search-input').value.trim().toLowerCase();
+  }
+
+  document.getElementById('search-input').addEventListener('input', render);
+
+  // ── RENDER ─────────────────────────────────────────────
+  function render() {
+    const list = document.getElementById('client-list');
+    list.innerHTML = '';
+    const query = getQuery();
+    const filtered = query ? clients.filter(c => c.name.toLowerCase().includes(query)) : clients;
+
+    const countEl = document.getElementById('search-count');
+    countEl.textContent = query ? `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}` : '';
+
+    if (clients.length === 0) {
+      list.innerHTML = `<div class="empty-state"><span>☕</span>Nenhum cliente ainda.<br>Adicione o primeiro!</div>`;
+    } else if (filtered.length === 0) {
+      list.innerHTML = `<div class="empty-state"><span>🔍</span>Nenhum cliente encontrado para "<strong>${escHtml(query)}</strong>".</div>`;
+    }
+
+    filtered.forEach((c) => {
+      const idx = clients.indexOf(c);
+      const progress = c.count % 10;
+      const freeReady = c.freeReady;
+      const pct = freeReady ? 100 : (progress / 10) * 100;
+
+      let stampsHtml = '';
+      for (let i = 0; i < 10; i++) {
+        if (freeReady && i === 0) {
+          stampsHtml += `<div class="stamp free" title="Café grátis pronto!">🎁</div>`;
+        } else if (i < progress) {
+          stampsHtml += `<div class="stamp filled" title="Compra registrada">☕</div>`;
+        } else {
+          stampsHtml += `<div class="stamp" title="Aguardando compra">○</div>`;
+        }
+      }
+
+      const phoneHtml = c.phone
+        ? `<span class="phone-display">📱 ${escHtml(c.phone)}</span>
+           <button class="btn-whatsapp" onclick="sendWhatsApp(${idx})" aria-label="Enviar mensagem WhatsApp para ${escHtml(c.name)}">📲 WhatsApp</button>
+           <button class="btn-edit-phone" onclick="editPhone(${idx})" title="Editar telefone" aria-label="Editar número de WhatsApp">✏️</button>`
+        : `<span class="phone-display empty">Sem WhatsApp cadastrado</span>
+           <button class="btn-edit-phone" onclick="editPhone(${idx})" aria-label="Adicionar número de WhatsApp">+ Adicionar</button>`;
+
+      const card = document.createElement('div');
+      card.className = 'client-card';
+      card.innerHTML = `
+        <div class="client-header">
+          <span class="client-name">${escHtml(c.name)}</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span class="free-badge ${freeReady ? 'visible' : ''}" aria-label="Café grátis disponível">🎁 GRÁTIS!</span>
+            <span class="client-meta">${c.total} total · ${c.freeCount} grátis</span>
+          </div>
+        </div>
+        <div class="stamps">${stampsHtml}</div>
+        <div class="progress-wrap">
+          <div class="progress-bar" style="width:${pct}%" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <div class="card-actions">
+          <button class="btn-buy" onclick="registerPurchase(${idx})" aria-label="Registrar compra para ${escHtml(c.name)}">+ Registrar Compra</button>
+          <button class="btn-redeem ${freeReady ? 'visible' : ''}" onclick="redeemFree(${idx})" aria-label="Resgatar café grátis para ${escHtml(c.name)}">Resgatar Grátis</button>
+          <button class="btn-delete" onclick="deleteClient(${idx})" title="Remover cliente" aria-label="Remover ${escHtml(c.name)} da lista">🗑</button>
+        </div>
+        <div class="card-phone">${phoneHtml}</div>
+      `;
+      list.appendChild(card);
+    });
+
+    updateStats();
+  }
+
+  function escHtml(str) {
+    return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function updateStats() {
+    document.getElementById('stat-clients').textContent = clients.length;
+    const totalPurchases = clients.reduce((s, c) => s + c.total, 0);
+    const totalFree = clients.reduce((s, c) => s + c.freeCount, 0);
+    document.getElementById('stat-purchases').textContent = totalPurchases;
+    document.getElementById('stat-free').textContent = totalFree;
+  }
+
+  // ── ACTIONS ────────────────────────────────────────────
+  function addClient() {
+    const input = document.getElementById('client-input');
+    const phoneInput = document.getElementById('phone-input');
+    const name = input.value.trim();
+    
+    if (!isValidName(name)) {
+      showToast('❌ Nome deve ter 1-40 caracteres!');
+      return;
+    }
+
+    const exists = clients.some(c => c.name.toLowerCase() === name.toLowerCase());
+    if (exists) {
+      showToast(`❌ ${name} já está cadastrado!`);
+      return;
+    }
+
+    const phone = phoneInput.value.replace(/\D/g, '');
+    if (phone.length > 0 && !isValidPhone(phone)) {
+      showToast('❌ Telefone inválido! Use 10-15 dígitos.');
+      return;
+    }
+
+    clients.push({
+      name,
+      phone: phone,
+      count: 0,
+      total: 0,
+      freeCount: 0,
+      freeReady: false
+    });
+    save(clients);
+    input.value = '';
+    phoneInput.value = '';
+    render();
+    showToast(`✅ ${name} cadastrado com sucesso!`);
+  }
+
+  function registerPurchase(idx) {
+    if (typeof idx !== 'number' || idx < 0 || idx >= clients.length) return;
+    
+    const c = clients[idx];
+    if (c.freeReady) {
+      showToast('❌ Resgate o café grátis antes de registrar nova compra!');
+      return;
+    }
+
+    c.count++;
+    c.total++;
+
+    if (c.count % 10 === 0) {
+      c.freeReady = true;
+      c.count = 0;
+      save(clients);
+      render();
+      showToast(`🎉 ${c.name} ganhou um café GRÁTIS!`);
+    } else {
+      save(clients);
+      render();
+      const left = 10 - (c.count % 10);
+      showToast(`☕ Compra registrada! Faltam ${left} para o grátis.`);
+    }
+
+    if (c.phone) {
+      setTimeout(() => openWhatsApp(c.phone, buildPurchaseMsg(c)), 400);
+    }
+  }
+
+  function redeemFree(idx) {
+    if (typeof idx !== 'number' || idx < 0 || idx >= clients.length) return;
+    
+    const c = clients[idx];
+    c.freeReady = false;
+    c.freeCount++;
+    save(clients);
+    render();
+    showToast(`🎁 Café grátis resgatado para ${c.name}! Bom proveito!`);
+
+    if (c.phone) {
+      setTimeout(() => openWhatsApp(c.phone, buildRedeemMsg(c)), 400);
+    }
+  }
+
+  function deleteClient(idx) {
+    if (typeof idx !== 'number' || idx < 0 || idx >= clients.length) return;
+    
+    const name = clients[idx].name;
+    if (!confirm(`Remover ${name} da lista de fidelidade?`)) return;
+    clients.splice(idx, 1);
+    save(clients);
+    render();
+    showToast(`✅ ${name} removido.`);
+  }
+
+  // ── ENTER KEY ──────────────────────────────────────────
+  document.getElementById('client-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('phone-input').focus();
+  });
+  document.getElementById('phone-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addClient();
+  });
+
+  // ── INIT ───────────────────────────────────────────────
+  render();
+</script>
+</body>
+</html>
